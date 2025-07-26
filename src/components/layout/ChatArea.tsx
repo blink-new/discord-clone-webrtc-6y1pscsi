@@ -1,77 +1,18 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useApp } from '../../hooks/useAppContext'
+import { blink, Message } from '../../lib/blink'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { ScrollArea } from '../ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { 
-  Hash, 
-  Users, 
-  Pin, 
-  Bell, 
-  Search, 
-  Inbox, 
-  HelpCircle,
-  Smile,
-  Plus,
-  Gift,
-  Sticker,
-  Send,
-  Video,
-  Phone
-} from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Hash, Volume2, Send, Loader2 } from 'lucide-react'
 
-interface ChatAreaProps {
-  selectedChannel: string
-}
-
-interface Message {
-  id: string
-  user: string
-  avatar: string
-  content: string
-  timestamp: Date
-  reactions?: { emoji: string; count: number }[]
-}
-
-const ChatArea = ({ selectedChannel }: ChatAreaProps) => {
-  const navigate = useNavigate()
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      user: 'Alice',
-      avatar: 'A',
-      content: 'Hey everyone! How\'s it going?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      reactions: [{ emoji: '👋', count: 3 }]
-    },
-    {
-      id: '2',
-      user: 'Bob',
-      avatar: 'B',
-      content: 'Pretty good! Just working on some code. Anyone want to hop on a video call?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 3),
-    },
-    {
-      id: '3',
-      user: 'Charlie',
-      avatar: 'C',
-      content: 'I\'m down for a video call! Let me finish this task first.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 2),
-      reactions: [{ emoji: '💻', count: 1 }, { emoji: '👍', count: 2 }]
-    },
-    {
-      id: '4',
-      user: 'Diana',
-      avatar: 'D',
-      content: 'Same here! This WebRTC implementation is looking great 🚀',
-      timestamp: new Date(Date.now() - 1000 * 60 * 1),
-    }
-  ])
-  
+export const ChatArea: React.FC = () => {
+  const { user, currentChannel, currentServer } = useApp()
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSending, setIsSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -81,166 +22,227 @@ const ChatArea = ({ selectedChannel }: ChatAreaProps) => {
     scrollToBottom()
   }, [messages])
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return
+  const loadMessages = useCallback(async () => {
+    if (!currentChannel) return
 
-    const message: Message = {
-      id: Date.now().toString(),
-      user: 'You',
-      avatar: 'Y',
-      content: newMessage,
-      timestamp: new Date(),
+    setIsLoading(true)
+    try {
+      const channelMessages = await blink.db.messages.list({
+        where: { channelId: currentChannel.id },
+        orderBy: { createdAt: 'asc' },
+        limit: 100
+      })
+      setMessages(channelMessages)
+    } catch (error) {
+      console.error('Failed to load messages:', error)
+    } finally {
+      setIsLoading(false)
     }
+  }, [currentChannel])
 
-    setMessages(prev => [...prev, message])
-    setNewMessage('')
-    inputRef.current?.focus()
-  }
+  useEffect(() => {
+    if (currentChannel) {
+      loadMessages()
+    } else {
+      setMessages([])
+    }
+  }, [currentChannel, loadMessages])
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !currentChannel || !user) return
+
+    setIsSending(true)
+    try {
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      const message = await blink.db.messages.create({
+        id: messageId,
+        channelId: currentChannel.id,
+        userId: user.id,
+        content: newMessage.trim(),
+        createdAt: new Date().toISOString()
+      })
+
+      setMessages(prev => [...prev, message])
+      setNewMessage('')
+    } catch (error) {
+      console.error('Failed to send message:', error)
+    } finally {
+      setIsSending(false)
     }
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleTimeString('ru-RU', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })
   }
 
-  const startVideoCall = () => {
-    navigate(`/room/${selectedChannel}-video`)
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Сегодня'
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Вчера'
+    } else {
+      return date.toLocaleDateString('ru-RU', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      })
+    }
   }
 
-  const startVoiceCall = () => {
-    navigate(`/room/${selectedChannel}-voice`)
+  if (!currentChannel) {
+    return (
+      <div className="flex-1 bg-discord-primary flex items-center justify-center">
+        <div className="text-center">
+          <Hash className="h-16 w-16 text-discord-text-muted mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-white mb-2">
+            Добро пожаловать в Discord!
+          </h3>
+          <p className="text-discord-text-secondary">
+            Выберите канал, чтобы начать общение
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="flex-1 flex flex-col discord-bg">
+    <div className="flex-1 flex flex-col bg-discord-primary">
       {/* Channel Header */}
-      <div className="h-12 px-4 flex items-center justify-between border-b border-black/20 shadow-sm">
-        <div className="flex items-center space-x-3">
-          <Hash className="w-5 h-5 discord-text-muted" />
-          <h3 className="font-semibold discord-text">{selectedChannel}</h3>
-          <div className="w-px h-6 bg-muted" />
-          <p className="text-sm discord-text-muted">Welcome to #{selectedChannel}!</p>
+      <div className="h-12 px-4 flex items-center border-b border-discord-border shadow-sm">
+        <div className="flex items-center">
+          {currentChannel.type === 'text' ? (
+            <Hash className="h-5 w-5 text-discord-text-muted mr-2" />
+          ) : (
+            <Volume2 className="h-5 w-5 text-discord-text-muted mr-2" />
+          )}
+          <h3 className="font-semibold text-white">{currentChannel.name}</h3>
         </div>
-        
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={startVoiceCall}>
-            <Phone className="w-4 h-4 discord-text-muted hover:discord-text" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={startVideoCall}>
-            <Video className="w-4 h-4 discord-text-muted hover:discord-text" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6">
-            <Pin className="w-4 h-4 discord-text-muted hover:discord-text" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6">
-            <Users className="w-4 h-4 discord-text-muted hover:discord-text" />
-          </Button>
-          <div className="relative">
-            <Input
-              placeholder="Search"
-              className="w-36 h-6 text-sm bg-discord-darker border-none discord-text placeholder:discord-text-muted"
-            />
-            <Search className="absolute right-2 top-1 w-3 h-3 discord-text-muted" />
-          </div>
-          <Button variant="ghost" size="icon" className="w-6 h-6">
-            <Inbox className="w-4 h-4 discord-text-muted hover:discord-text" />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6">
-            <HelpCircle className="w-4 h-4 discord-text-muted hover:discord-text" />
-          </Button>
-        </div>
+        {currentChannel.description && (
+          <>
+            <div className="w-px h-6 bg-discord-border mx-3" />
+            <p className="text-sm text-discord-text-secondary truncate">
+              {currentChannel.description}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 discord-scrollbar">
-        <div className="p-4 space-y-4">
-          {messages.map((message, index) => {
-            const showAvatar = index === 0 || messages[index - 1].user !== message.user
-            const timeDiff = index > 0 ? message.timestamp.getTime() - messages[index - 1].timestamp.getTime() : 0
-            const showTimestamp = showAvatar || timeDiff > 5 * 60 * 1000 // 5 minutes
+      <div className="flex-1 overflow-y-auto p-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-6 w-6 animate-spin text-discord-text-muted" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Hash className="h-16 w-16 text-discord-text-muted mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">
+                Добро пожаловать в #{currentChannel.name}!
+              </h3>
+              <p className="text-discord-text-secondary">
+                Это начало канала #{currentChannel.name}.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message, index) => {
+              const prevMessage = messages[index - 1]
+              const showDateSeparator = !prevMessage || 
+                new Date(message.createdAt).toDateString() !== new Date(prevMessage.createdAt).toDateString()
+              
+              const showUserInfo = !prevMessage || 
+                prevMessage.userId !== message.userId ||
+                new Date(message.createdAt).getTime() - new Date(prevMessage.createdAt).getTime() > 5 * 60 * 1000
 
-            return (
-              <div key={message.id} className={`flex ${showAvatar ? 'mt-4' : 'mt-0.5'}`}>
-                <div className="w-10 flex-shrink-0">
-                  {showAvatar && (
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                        {message.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                </div>
-                
-                <div className="flex-1 ml-4">
-                  {showAvatar && (
-                    <div className="flex items-baseline space-x-2 mb-1">
-                      <span className="font-semibold discord-text">{message.user}</span>
-                      <span className="text-xs discord-text-muted">{formatTime(message.timestamp)}</span>
+              return (
+                <div key={message.id}>
+                  {showDateSeparator && (
+                    <div className="flex items-center my-6">
+                      <div className="flex-1 h-px bg-discord-border" />
+                      <div className="px-4 py-1 bg-discord-secondary rounded text-xs text-discord-text-muted font-medium">
+                        {formatDate(message.createdAt)}
+                      </div>
+                      <div className="flex-1 h-px bg-discord-border" />
                     </div>
                   )}
                   
-                  <div className="discord-text leading-relaxed">
-                    {message.content}
+                  <div className={`flex ${showUserInfo ? 'mt-4' : 'mt-0.5'}`}>
+                    {showUserInfo ? (
+                      <>
+                        <Avatar className="h-10 w-10 mr-4 flex-shrink-0">
+                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${message.userId}`} />
+                          <AvatarFallback className="bg-discord-primary text-white">
+                            {message.userId.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline space-x-2 mb-1">
+                            <span className="font-medium text-white">
+                              {message.userId === user?.id ? 'Вы' : `Пользователь ${message.userId.slice(-4)}`}
+                            </span>
+                            <span className="text-xs text-discord-text-muted">
+                              {formatTime(message.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-discord-text-primary break-words">
+                            {message.content}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="ml-14 flex-1 min-w-0">
+                        <p className="text-discord-text-primary break-words">
+                          {message.content}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  
-                  {message.reactions && (
-                    <div className="flex space-x-1 mt-1">
-                      {message.reactions.map((reaction, i) => (
-                        <Button
-                          key={i}
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs bg-discord-darker hover:bg-discord-dark border border-discord-dark"
-                        >
-                          {reaction.emoji} {reaction.count}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
-            )
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+              )
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+      </div>
 
       {/* Message Input */}
       <div className="p-4">
-        <div className="relative">
-          <Input
-            ref={inputRef}
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={`Message #${selectedChannel}`}
-            className="w-full bg-discord-dark border-none discord-text placeholder:discord-text-muted pr-12 py-3 rounded-lg"
-          />
-          
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-1">
-            <Button variant="ghost" size="icon" className="w-6 h-6">
-              <Plus className="w-4 h-4 discord-text-muted hover:discord-text" />
-            </Button>
-            <Button variant="ghost" size="icon" className="w-6 h-6">
-              <Gift className="w-4 h-4 discord-text-muted hover:discord-text" />
-            </Button>
-            <Button variant="ghost" size="icon" className="w-6 h-6">
-              <Sticker className="w-4 h-4 discord-text-muted hover:discord-text" />
-            </Button>
-            <Button variant="ghost" size="icon" className="w-6 h-6">
-              <Smile className="w-4 h-4 discord-text-muted hover:discord-text" />
+        <form onSubmit={sendMessage} className="flex items-center space-x-3">
+          <div className="flex-1 relative">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={`Написать в #${currentChannel.name}`}
+              className="bg-discord-dark border-0 text-white placeholder:text-discord-text-muted pr-12"
+              disabled={isSending}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={!newMessage.trim() || isSending}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 bg-transparent hover:bg-discord-primary text-discord-text-muted hover:text-white"
+            >
+              {isSending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
-        </div>
-        
-        <div className="mt-2 text-xs discord-text-muted">
-          Use <kbd className="px-1 py-0.5 bg-discord-darker rounded text-xs">Shift + Enter</kbd> for new line
-        </div>
+        </form>
       </div>
     </div>
   )

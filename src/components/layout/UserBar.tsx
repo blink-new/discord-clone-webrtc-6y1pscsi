@@ -1,62 +1,46 @@
-import { useState } from 'react'
+import React from 'react'
+import { useApp } from '../../hooks/useAppContext'
+import { blink } from '../../lib/blink'
 import { Button } from '../ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { 
-  Mic, 
-  MicOff, 
-  Headphones, 
-  HeadphonesIcon,
-  Settings,
-  Volume2,
-  VolumeX
-} from 'lucide-react'
+import { Badge } from '../ui/badge'
+import { Mic, MicOff, Headphones, Settings, LogOut } from 'lucide-react'
 
-const UserBar = () => {
-  const [isMuted, setIsMuted] = useState(false)
-  const [isDeafened, setIsDeafened] = useState(false)
-  
-  const user = {
-    name: 'You',
-    avatar: 'Y',
-    status: 'online',
-    activity: 'Building Discord Clone'
+export const UserBar: React.FC = () => {
+  const { user } = useApp()
+
+  const handleLogout = () => {
+    blink.auth.logout()
   }
 
-  const toggleMute = () => {
-    setIsMuted(!isMuted)
-    if (isDeafened) setIsDeafened(false) // Undeafen when unmuting
-  }
-
-  const toggleDeafen = () => {
-    setIsDeafened(!isDeafened)
-    if (!isDeafened) setIsMuted(true) // Mute when deafening
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'status-online'
-      case 'idle': return 'status-idle'
-      case 'dnd': return 'status-dnd'
-      default: return 'bg-gray-500'
-    }
-  }
+  if (!user) return null
 
   return (
-    <div className="h-[52px] discord-darker flex items-center justify-between px-2 border-t border-black/20">
+    <div className="h-[52px] bg-discord-darker px-2 flex items-center justify-between border-t border-discord-border">
       {/* User Info */}
       <div className="flex items-center space-x-2 flex-1 min-w-0">
-        <div className="relative">
-          <Avatar className="w-8 h-8">
-            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-              {user.avatar}
-            </AvatarFallback>
-          </Avatar>
-          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-darker ${getStatusColor(user.status)}`} />
-        </div>
+        <Avatar className="h-8 w-8">
+          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`} />
+          <AvatarFallback className="bg-discord-primary text-white text-sm">
+            {user.displayName?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
         
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold discord-text truncate">{user.name}</div>
-          <div className="text-xs discord-text-muted truncate">{user.activity}</div>
+          <div className="flex items-center space-x-2">
+            <p className="text-sm font-medium text-white truncate">
+              {user.displayName || user.email.split('@')[0]}
+            </p>
+            <Badge 
+              variant="secondary" 
+              className="bg-discord-accent/20 text-discord-accent border-0 text-xs px-1.5 py-0.5"
+            >
+              В сети
+            </Badge>
+          </div>
+          <p className="text-xs text-discord-text-muted truncate">
+            #{user.id.slice(-4)}
+          </p>
         </div>
       </div>
 
@@ -65,35 +49,34 @@ const UserBar = () => {
         <Button
           variant="ghost"
           size="icon"
-          className={`w-8 h-8 ${isMuted ? 'bg-red-600 hover:bg-red-700' : 'hover:bg-muted'}`}
-          onClick={toggleMute}
+          className="h-8 w-8 text-discord-text-secondary hover:text-white hover:bg-discord-dark"
         >
-          {isMuted ? (
-            <MicOff className="w-4 h-4 text-white" />
-          ) : (
-            <Mic className="w-4 h-4 discord-text-muted" />
-          )}
+          <Mic className="h-4 w-4" />
         </Button>
         
         <Button
           variant="ghost"
           size="icon"
-          className={`w-8 h-8 ${isDeafened ? 'bg-red-600 hover:bg-red-700' : 'hover:bg-muted'}`}
-          onClick={toggleDeafen}
+          className="h-8 w-8 text-discord-text-secondary hover:text-white hover:bg-discord-dark"
         >
-          {isDeafened ? (
-            <VolumeX className="w-4 h-4 text-white" />
-          ) : (
-            <Headphones className="w-4 h-4 discord-text-muted" />
-          )}
+          <Headphones className="h-4 w-4" />
         </Button>
         
         <Button
           variant="ghost"
           size="icon"
-          className="w-8 h-8 hover:bg-muted"
+          className="h-8 w-8 text-discord-text-secondary hover:text-white hover:bg-discord-dark"
         >
-          <Settings className="w-4 h-4 discord-text-muted" />
+          <Settings className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleLogout}
+          className="h-8 w-8 text-discord-text-secondary hover:text-red-400 hover:bg-discord-dark"
+        >
+          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </div>

@@ -1,48 +1,66 @@
-import { useState } from 'react'
+import React from 'react'
+import { useApp } from '../../hooks/useAppContext'
 import { Button } from '../ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { Plus, Home } from 'lucide-react'
+import { Plus, Compass, Hash } from 'lucide-react'
 
 interface ServerSidebarProps {
-  selectedServer: string
-  onServerSelect: (serverId: string) => void
+  onShowDiscovery: () => void
+  onShowCreateServer: () => void
 }
 
-const ServerSidebar = ({ selectedServer, onServerSelect }: ServerSidebarProps) => {
-  const servers = [
-    { id: 'home', name: 'Home', avatar: null, icon: Home },
-    { id: 'general', name: 'General Server', avatar: 'G', color: 'bg-blue-600' },
-    { id: 'gaming', name: 'Gaming Hub', avatar: 'GH', color: 'bg-green-600' },
-    { id: 'dev', name: 'Dev Community', avatar: 'DC', color: 'bg-purple-600' },
-  ]
+export const ServerSidebar: React.FC<ServerSidebarProps> = ({ 
+  onShowDiscovery, 
+  onShowCreateServer 
+}) => {
+  const { servers, currentServer, setCurrentServer } = useApp()
 
   return (
-    <div className="w-[72px] discord-darker flex flex-col items-center py-3 space-y-2">
+    <div className="w-[72px] bg-discord-darker flex flex-col items-center py-3 space-y-2">
       <TooltipProvider>
+        {/* Home/DM Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-12 h-12 rounded-[24px] bg-discord-primary hover:bg-discord-primary/90 hover:rounded-[16px] transition-all duration-200 text-white"
+            >
+              <Hash className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="bg-black text-white">
+            Личные сообщения
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Separator */}
+        <div className="w-8 h-[2px] bg-discord-border rounded-full my-2" />
+
+        {/* Server List */}
         {servers.map((server) => (
           <Tooltip key={server.id}>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className={`
-                  w-12 h-12 rounded-2xl transition-all duration-200 hover:rounded-xl
-                  ${selectedServer === server.id 
-                    ? 'rounded-xl bg-primary text-primary-foreground' 
-                    : 'hover:bg-primary/10'
-                  }
-                `}
-                onClick={() => onServerSelect(server.id)}
+                onClick={() => setCurrentServer(server)}
+                className={`w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 text-white font-medium ${
+                  currentServer?.id === server.id
+                    ? 'bg-discord-primary rounded-[16px]'
+                    : 'bg-discord-secondary hover:bg-discord-primary'
+                }`}
               >
-                {server.id === 'home' ? (
-                  <Home className="w-6 h-6" />
+                {server.icon ? (
+                  <img 
+                    src={server.icon} 
+                    alt={server.name}
+                    className="w-full h-full rounded-inherit object-cover"
+                  />
                 ) : (
-                  <Avatar className="w-12 h-12">
-                    <AvatarFallback className={`${server.color} text-white font-semibold`}>
-                      {server.avatar}
-                    </AvatarFallback>
-                  </Avatar>
+                  <span className="text-lg font-semibold">
+                    {server.name.charAt(0).toUpperCase()}
+                  </span>
                 )}
               </Button>
             </TooltipTrigger>
@@ -51,29 +69,41 @@ const ServerSidebar = ({ selectedServer, onServerSelect }: ServerSidebarProps) =
             </TooltipContent>
           </Tooltip>
         ))}
-        
+
         {/* Add Server Button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="w-12 h-12 rounded-2xl hover:rounded-xl hover:bg-green-600 transition-all duration-200 border-2 border-dashed border-muted-foreground/30 hover:border-green-600"
+              onClick={onShowCreateServer}
+              className="w-12 h-12 rounded-[24px] bg-discord-secondary hover:bg-discord-accent hover:rounded-[16px] transition-all duration-200 text-discord-accent hover:text-white"
             >
-              <Plus className="w-6 h-6" />
+              <Plus className="h-6 w-6" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right" className="bg-black text-white">
-            Add a Server
+            Добавить сервер
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Server Discovery Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onShowDiscovery}
+              className="w-12 h-12 rounded-[24px] bg-discord-secondary hover:bg-discord-accent hover:rounded-[16px] transition-all duration-200 text-discord-accent hover:text-white"
+            >
+              <Compass className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="bg-black text-white">
+            Путешествия
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      
-      {/* Server indicator */}
-      {selectedServer !== 'home' && (
-        <div className="absolute left-0 w-1 h-8 bg-white rounded-r-full transition-all duration-200" 
-             style={{ top: `${(servers.findIndex(s => s.id === selectedServer) * 56) + 20}px` }} />
-      )}
     </div>
   )
 }

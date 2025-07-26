@@ -1,30 +1,34 @@
-import { useState } from 'react'
-import ServerSidebar from './ServerSidebar'
-import ChannelSidebar from './ChannelSidebar'
-import ChatArea from './ChatArea'
-import UserBar from './UserBar'
+import React from 'react'
+import { ServerSidebar } from './ServerSidebar'
+import { ChannelSidebar } from './ChannelSidebar'
+import { ChatArea } from './ChatArea'
+import { UserBar } from './UserBar'
 
-const MainLayout = () => {
-  const [selectedServer, setSelectedServer] = useState('general')
-  const [selectedChannel, setSelectedChannel] = useState('general')
+interface MainLayoutProps {
+  onShowDiscovery: () => void
+  onHideDiscovery: () => void
+  onShowCreateServer: () => void
+}
 
+export const MainLayout: React.FC<MainLayoutProps> = ({ 
+  onShowDiscovery, 
+  onHideDiscovery, 
+  onShowCreateServer 
+}) => {
   return (
     <div className="flex h-screen w-screen">
       {/* Server Sidebar */}
       <ServerSidebar 
-        selectedServer={selectedServer}
-        onServerSelect={setSelectedServer}
+        onShowDiscovery={onShowDiscovery}
+        onShowCreateServer={onShowCreateServer}
       />
       
       {/* Channel Sidebar */}
-      <ChannelSidebar 
-        selectedChannel={selectedChannel}
-        onChannelSelect={setSelectedChannel}
-      />
+      <ChannelSidebar />
       
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        <ChatArea selectedChannel={selectedChannel} />
+        <ChatArea />
         <UserBar />
       </div>
     </div>
